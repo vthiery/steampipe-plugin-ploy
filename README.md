@@ -71,7 +71,7 @@ where
 | [ploy_audit_log](docs/tables/ploy_audit_log.md) | The organisation audit trail. |
 | [ploy_integration](docs/tables/ploy_integration.md) | Connected integrations (identity provider, HRIS, SaaS, ...) with last scan time. |
 
-> **Note — API limits:** Ploy does not publish a rate limit. The plugin sends at most 8 requests per second and retries on HTTP 429 with exponential backoff. `ploy_resource_access` can only be listed per member, resource or identity, so an unfiltered scan makes one API call per member; filter on `resource_id`, `member_id` or `identity_id` whenever you can. When joining it to other tables, read the other table in a `MATERIALIZED` CTE and reach `ploy_resource_access` with `CROSS JOIN LATERAL`, otherwise the query planner can turn the join into thousands of API calls.
+> **Note — API limits:** Ploy allows 600 requests per API key per 60-second window. The plugin sends at most 8 requests per second and, on HTTP 429, waits for `Retry-After` before retrying. `ploy_resource_access` is organisation-wide: filter on `member_status`, `member_is_managed`, `active`, `identity_active`, `resource_id`, `member_id` and the other filter columns to keep scans small. The API refuses a query matching more than 250,000 rows unless it filters on `resource_id`, `member_id` or `identity_id`.
 
 ## Development
 

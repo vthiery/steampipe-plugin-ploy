@@ -121,38 +121,6 @@ func tablePloyResource() *plugin.Table {
 	}
 }
 
-//// ploy_resource_access — who holds access to what.
-// See table_ploy_resource_access.go for the list hydrate.
-
-func tablePloyResourceAccess() *plugin.Table {
-	return &plugin.Table{
-		Name: "ploy_resource_access",
-		Description: "Access held to resources. Filter on resource_id, member_id or identity_id for a direct lookup; " +
-			"without one, the table fans out over every member (one API call each), so resource-held access is not listed.",
-		List: &plugin.ListConfig{
-			Hydrate:    listResourceAccess,
-			KeyColumns: optionalQuals(resourceAccessQuals),
-		},
-		Get: &plugin.GetConfig{KeyColumns: plugin.SingleColumn("id"), Hydrate: getHydrate("/resource-access")},
-		Columns: []*plugin.Column{
-			col("id", tStr, "id", "Resource access ID."),
-			col("resource_id", tStr, "resourceId", "Resource the access is to."),
-			col("member_id", tStr, "memberId", "Member owning the holding identity."),
-			col("identity_id", tStr, "identityId", "Identity holding the access."),
-			col("accessor_type", tStr, "accessorType", "identity or resource."),
-			col("accessing_resource_id", tStr, "accessingResourceId", "Resource holding the access (accessor_type = resource)."),
-			col("active", tBool, "active", "Neither revoked nor suspended."),
-			col("managed_status", tStr, "managedStatus", "Ploy provisioning lifecycle state."),
-			col("granted_at", tTS, "grantedAt", "Grant time."),
-			col("expires_at", tTS, "expiresAt", "Expiry for time-boxed access."),
-			col("revoked_at", tTS, "revokedAt", "Revocation time."),
-			col("suspended_at", tTS, "suspendedAt", "Suspension time."),
-			col("grants", tJSON, "grants", "Entitlements held through this access."),
-			col("created_at", tTS, "createdAt", "Creation time."),
-		},
-	}
-}
-
 //// ploy_access_review_campaign
 
 var campaignQuals = []qualParam{{"status", "status"}}

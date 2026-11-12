@@ -22,8 +22,9 @@ const (
 	maxRetries     = 8
 )
 
-// limiter is shared by every request the plugin process makes. Ploy does not publish
-// its rate limit and sends no Retry-After header; 8 req/s has proven safe.
+// limiter is shared by every request the plugin process makes. Ploy allows 600 requests
+// per API key per 60-second window (X-RateLimit-Limit); 8 req/s stays under that and
+// leaves headroom for other clients using the same key.
 var limiter = rate.NewLimiter(rate.Limit(8), 8)
 
 // Client wraps the Ploy public REST API.
@@ -130,6 +131,7 @@ var errNotFound = fmt.Errorf("not found")
 
 // list pages through an offset-paginated endpoint, streaming every row.
 func (c *Client) list(ctx context.Context, d *plugin.QueryData, path string, params url.Values) error {
+	filters := filterValues(params)
 	if params == nil {
 		params = url.Values{}
 	}
@@ -142,6 +144,11 @@ func (c *Client) list(ctx context.Context, d *plugin.QueryData, path string, par
 			return err
 		}
 		for _, row := range page.Data {
+			for k, v := range filters {
+				if _, ok := row[k]; !ok {
+					row[k] = v
+				}
+			}
 			d.StreamListItem(ctx, row)
 			if d.RowsRemaining(ctx) == 0 {
 				return nil
@@ -166,13 +173,13 @@ func (c *Client) getOne(ctx context.Context, path string) (Row, error) {
 	return res.Data, nil
 }
 
+// retryAfter returns how long Ploy asks us to wait: Retry-After, or X-RateLimit-Reset
+// (both in seconds until the current window resets).
 func retryAfter(resp *http.Response) time.Duration {
-	v := resp.Header.Get("Retry-After")
-	if v == "" {
-		return 0
-	}
-	if s, err := strconv.Atoi(v); err == nil {
-		return time.Duration(s) * time.Second
+	for _, h := range []string{"Retry-After", "X-RateLimit-Reset"} {
+		if s, err := strconv.Atoi(resp.Header.Get(h)); err == nil && s > 0 {
+			return time.Duration(s) * time.Second
+		}
 	}
 	return 0
 }
@@ -191,4 +198,25 @@ func truncate(b []byte) string {
 		return string(b[:300]) + "…"
 	}
 	return string(b)
+}
+
+// filterValues returns the request filters as typed values keyed by API parameter name.
+// list copies them onto rows that do not already carry the field, so filter-only columns
+// (e.g. memberStatus on /resource-access) report the value the query filtered on.
+func filterValues(params url.Values) Row {
+	out := Row{}
+	for k, v := range params {
+		if len(v) == 0 || k == "limit" || k == "offset" {
+			continue
+		}
+		switch v[0] {
+		case "true":
+			out[k] = true
+		case "false":
+			out[k] = false
+		default:
+			out[k] = v[0]
+		}
+	}
+	return out
 }

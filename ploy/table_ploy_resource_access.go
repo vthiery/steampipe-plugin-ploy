@@ -1,81 +1,67 @@
 package ploy
 
 import (
-	"context"
-	"fmt"
-	"net/url"
-	"strconv"
-
+	"github.com/turbot/steampipe-plugin-sdk/v5/grpc/proto"
 	"github.com/turbot/steampipe-plugin-sdk/v5/plugin"
-	"golang.org/x/sync/errgroup"
 )
 
-// fanOutConcurrency bounds parallel per-member calls on an unfiltered scan.
-const fanOutConcurrency = 5
-
+// Every filter is optional and pushed down to GET /resource-access. A query matching more
+// than 250,000 rows without a resource_id, member_id or identity_id is refused by the API.
 var resourceAccessQuals = []qualParam{
-	{"resource_id", "resourceId"}, {"member_id", "memberId"}, {"identity_id", "identityId"}, {"active", "active"},
+	{"resource_id", "resourceId"},
+	{"member_id", "memberId"},
+	{"identity_id", "identityId"},
+	{"active", "active"},
+	{"shadow", "shadow"},
+	{"accessor_type", "accessorType"},
+	{"member_status", "memberStatus"},
+	{"member_is_managed", "memberIsManaged"},
+	{"has_member", "hasMember"},
+	{"identity_active", "identityActive"},
+	{"identity_type", "identityType"},
+	{"resource_type", "resourceType"},
+	{"managed_app", "managedApp"},
 }
 
-// listResourceAccess lists /resource-access. The API refuses a call with no resourceId,
-// memberId or identityId; Postgres may still plan an unqualified scan (e.g. a hash join),
-// so in that case fan out over every member instead of failing.
-func listResourceAccess(ctx context.Context, d *plugin.QueryData, _ *plugin.HydrateData) (interface{}, error) {
-	client, err := getClient(ctx, d)
-	if err != nil {
-		return nil, err
-	}
-	params := paramsFromQuals(d, resourceAccessQuals)
-	if params.Has("resourceId") || params.Has("memberId") || params.Has("identityId") {
-		if err := client.list(ctx, d, "/resource-access", params); err != nil {
-			return nil, fmt.Errorf("listing resource access: %w", err)
-		}
-		return nil, nil
-	}
-
-	memberIDs, err := client.allMemberIDs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("listing members for resource access fan-out: %w", err)
-	}
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(fanOutConcurrency)
-	for _, id := range memberIDs {
-		p := url.Values{}
-		for k, v := range params {
-			p[k] = v
-		}
-		p.Set("memberId", id)
-		g.Go(func() error {
-			if d.RowsRemaining(gctx) == 0 {
-				return nil
-			}
-			if err := client.list(gctx, d, "/resource-access", p); err != nil {
-				return fmt.Errorf("listing resource access for member %s: %w", p.Get("memberId"), err)
-			}
-			return nil
-		})
-	}
-	return nil, g.Wait()
+// filterCol builds a column that only exists to push a filter to the API. Its value is the
+// value the query filtered on (copied onto each row by the list hydrate), and null when the
+// query did not filter on it.
+func filterCol(name string, t proto.ColumnType, field, desc string) *plugin.Column {
+	return col(name, t, field, desc+" Filter only: null unless used in the WHERE clause.")
 }
 
-// allMemberIDs pages through /members and returns every member id.
-func (c *Client) allMemberIDs(ctx context.Context) ([]string, error) {
-	params := url.Values{"limit": {strconv.Itoa(pageSize)}}
-	var ids []string
-	for offset := 0; ; {
-		params.Set("offset", strconv.Itoa(offset))
-		var page listResponse
-		if err := c.get(ctx, "/members", params, &page); err != nil {
-			return nil, err
-		}
-		for _, m := range page.Data {
-			if id, ok := m["id"].(string); ok {
-				ids = append(ids, id)
-			}
-		}
-		offset += len(page.Data)
-		if len(page.Data) == 0 || offset >= page.Pagination.Total {
-			return ids, nil
-		}
+func tablePloyResourceAccess() *plugin.Table {
+	return &plugin.Table{
+		Name:        "ploy_resource_access",
+		Description: "Access held to resources, organisation-wide. Filter to keep scans small; see the filter columns.",
+		List: &plugin.ListConfig{
+			Hydrate:    listHydrate("/resource-access", resourceAccessQuals),
+			KeyColumns: optionalQuals(resourceAccessQuals, "active", "shadow", "member_is_managed", "has_member", "identity_active", "managed_app"),
+		},
+		Get: &plugin.GetConfig{KeyColumns: plugin.SingleColumn("id"), Hydrate: getHydrate("/resource-access")},
+		Columns: []*plugin.Column{
+			col("id", tStr, "id", "Resource access ID."),
+			col("resource_id", tStr, "resourceId", "Resource the access is to."),
+			col("member_id", tStr, "memberId", "Member owning the holding identity."),
+			col("identity_id", tStr, "identityId", "Identity holding the access."),
+			col("accessor_type", tStr, "accessorType", "identity or resource."),
+			col("accessing_resource_id", tStr, "accessingResourceId", "Resource holding the access (accessor_type = resource)."),
+			col("active", tBool, "active", "Neither revoked nor suspended."),
+			col("shadow", tBool, "shadow", "Access Ploy saw in use that no source of truth has confirmed (Shadow Access)."),
+			col("identity_active", tBool, "identityActive", "Whether the holding account is enabled in its own system. False once deactivated or removed there, e.g. a user deprovisioned in Okta."),
+			col("managed_status", tStr, "managedStatus", "Ploy provisioning lifecycle state."),
+			col("granted_at", tTS, "grantedAt", "Grant time."),
+			col("expires_at", tTS, "expiresAt", "Expiry for time-boxed access."),
+			col("revoked_at", tTS, "revokedAt", "Revocation time."),
+			col("suspended_at", tTS, "suspendedAt", "Suspension time."),
+			col("grants", tJSON, "grants", "Entitlements held through this access."),
+			col("created_at", tTS, "createdAt", "Creation time."),
+			filterCol("member_status", tStr, "memberStatus", "Status of the member holding the access: active, inactive or inactive_onboarding."),
+			filterCol("member_is_managed", tBool, "memberIsManaged", "Whether the holding member is managed. With member_status = 'inactive' this selects leavers (terminated members)."),
+			filterCol("has_member", tBool, "hasMember", "true: identities owned by a member. false: service accounts and accounts not matched to a person."),
+			filterCol("identity_type", tStr, "identityType", "Identity type: human, service_account, service_principal, managed_identity, app_registration, api_key, agent_identity or shared_mailbox."),
+			filterCol("resource_type", tStr, "resourceType", "Type of the resource the access is to, as type on ploy_resource."),
+			filterCol("managed_app", tBool, "managedApp", "true: access to apps on the Managed apps list. false: every other resource."),
+		},
 	}
 }

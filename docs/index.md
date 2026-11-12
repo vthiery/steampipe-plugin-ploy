@@ -53,4 +53,4 @@ The scopes the key needs depend on the tables you query: `members:read` for `plo
 
 ## Rate limiting
 
-Ploy does not publish a rate limit. The plugin sends at most 8 requests per second and retries HTTP 429 and 5xx responses with exponential backoff (0.5 s up to 30 s, 8 retries).
+Ploy allows 600 requests per API key per 60-second window (see the `X-RateLimit-*` response headers). The plugin sends at most 8 requests per second and retries HTTP 429 and 5xx responses with exponential backoff, waiting for `Retry-After` when Ploy sends it.

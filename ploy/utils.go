@@ -22,11 +22,21 @@ type qualParam struct {
 	Param  string
 }
 
-// optionalQuals turns qual mappings into optional key columns.
-func optionalQuals(qs []qualParam) []*plugin.KeyColumn {
+// optionalQuals turns qual mappings into optional key columns. Boolean columns also accept
+// "<>": Postgres rewrites `col = false` into `col <> true`, and without it the filter would
+// not be pushed down and the API would be scanned in full.
+func optionalQuals(qs []qualParam, boolCols ...string) []*plugin.KeyColumn {
+	isBool := map[string]bool{}
+	for _, c := range boolCols {
+		isBool[c] = true
+	}
 	kcs := make([]*plugin.KeyColumn, 0, len(qs))
 	for _, q := range qs {
-		kcs = append(kcs, &plugin.KeyColumn{Name: q.Column, Require: plugin.Optional})
+		kc := &plugin.KeyColumn{Name: q.Column, Require: plugin.Optional}
+		if isBool[q.Column] {
+			kc.Operators = []string{"=", "<>"}
+		}
+		kcs = append(kcs, kc)
 	}
 	return kcs
 }
@@ -35,15 +45,27 @@ func optionalQuals(qs []qualParam) []*plugin.KeyColumn {
 func paramsFromQuals(d *plugin.QueryData, qs []qualParam) url.Values {
 	params := url.Values{}
 	for _, q := range qs {
-		v, ok := d.EqualsQuals[q.Column]
-		if !ok || v == nil {
+		quals := d.Quals[q.Column]
+		if quals == nil {
 			continue
 		}
-		switch x := v.Value.(type) {
-		case *proto.QualValue_StringValue:
-			params.Set(q.Param, x.StringValue)
-		case *proto.QualValue_BoolValue:
-			params.Set(q.Param, strconv.FormatBool(x.BoolValue))
+		for _, qual := range quals.Quals {
+			if qual.Value == nil {
+				continue
+			}
+			switch x := qual.Value.Value.(type) {
+			case *proto.QualValue_StringValue:
+				if qual.Operator == "=" {
+					params.Set(q.Param, x.StringValue)
+				}
+			case *proto.QualValue_BoolValue:
+				switch qual.Operator {
+				case "=":
+					params.Set(q.Param, strconv.FormatBool(x.BoolValue))
+				case "<>":
+					params.Set(q.Param, strconv.FormatBool(!x.BoolValue))
+				}
+			}
 		}
 	}
 	return params
