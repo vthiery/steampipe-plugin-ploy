@@ -22,6 +22,15 @@ type qualParam struct {
 	Param  string
 }
 
+// filterOnly lists columns the API does not return: they only report the value the query
+// filtered on. They need CacheMatch "exact", otherwise the query cache answers a filtered
+// query from cached rows fetched without the filter, where the column is null, and the
+// filter then removes every row.
+var filterOnly = map[string]bool{
+	"member_status": true, "member_is_managed": true, "has_member": true,
+	"identity_type": true, "resource_type": true, "managed_app": true,
+}
+
 // optionalQuals turns qual mappings into optional key columns. Boolean columns also accept
 // "<>": Postgres rewrites `col = false` into `col <> true`, and without it the filter would
 // not be pushed down and the API would be scanned in full.
@@ -33,6 +42,9 @@ func optionalQuals(qs []qualParam, boolCols ...string) []*plugin.KeyColumn {
 	kcs := make([]*plugin.KeyColumn, 0, len(qs))
 	for _, q := range qs {
 		kc := &plugin.KeyColumn{Name: q.Column, Require: plugin.Optional}
+		if filterOnly[q.Column] {
+			kc.CacheMatch = "exact"
+		}
 		if isBool[q.Column] {
 			kc.Operators = []string{"=", "<>"}
 		}

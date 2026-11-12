@@ -75,6 +75,7 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, result
 		u += "?" + params.Encode()
 	}
 
+	plugin.Logger(ctx).Debug("ploy.get", "url", u)
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if err := limiter.Wait(ctx); err != nil {
