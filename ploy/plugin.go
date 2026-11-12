@@ -26,6 +26,8 @@ func Plugin(ctx context.Context) *plugin.Plugin {
 			"ploy_access_request":         tablePloyAccessRequest(),
 			"ploy_audit_log":              tablePloyAuditLog(),
 			"ploy_integration":            tablePloyIntegration(),
+			"ploy_ip_whitelist":           tablePloyIPWhitelist(),
+			"ploy_internal_domain":        tablePloyInternalDomain(),
 		},
 	}
 }

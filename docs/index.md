@@ -35,7 +35,7 @@ connection "ploy" {
 }
 ```
 
-The scopes the key needs depend on the tables you query: `members:read` for `ploy_member`, `users:read` for `ploy_user`, `resources:read` for `ploy_resource`, `resource_access:read` for `ploy_resource_access`, `access_reviews:read` for the two access review tables, `access_requests:read` for `ploy_access_request`, `audit_logs:read` for `ploy_audit_log` and `integrations:read` for `ploy_integration`.
+The scopes the key needs depend on the tables you query: `members:read` for `ploy_member`, `users:read` for `ploy_user`, `resources:read` for `ploy_resource`, `resource_access:read` for `ploy_resource_access`, `access_reviews:read` for the two access review tables, `access_requests:read` for `ploy_access_request`, `audit_logs:read` for `ploy_audit_log` `integrations:read` for `ploy_integration`, and `organisation:read` for `ploy_ip_whitelist` and `ploy_internal_domain`.
 
 ## Tables
 
@@ -50,6 +50,8 @@ The scopes the key needs depend on the tables you query: `members:read` for `plo
 | [ploy_access_request](tables/ploy_access_request.md) | Access requests and their approval and provisioning lifecycle. |
 | [ploy_audit_log](tables/ploy_audit_log.md) | The organisation audit trail. |
 | [ploy_integration](tables/ploy_integration.md) | Connected integrations (identity provider, HRIS, SaaS, ...) with last scan time. |
+| [ploy_ip_whitelist](tables/ploy_ip_whitelist.md) | IP allow-lists for the admin dashboard and the employee portal. |
+| [ploy_internal_domain](tables/ploy_internal_domain.md) | Email domains declared as internal. |
 
 ## Rate limiting
 

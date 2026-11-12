@@ -1,3 +1,9 @@
+## v0.0.2 [2026-11-12]
+
+_What's new?_
+
+- Added the `ploy_ip_whitelist` and `ploy_internal_domain` tables (organisation settings; need the `organisation:read` scope).
+
 ## v0.0.1 [2026-11-12]
 
 _What's new?_

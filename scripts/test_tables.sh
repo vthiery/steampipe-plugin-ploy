@@ -54,6 +54,8 @@ run_test "ploy_access_review"         "select id, name, status from ploy_access_
 run_test "ploy_access_request"        "select id, status from ploy_access_request limit 1"
 run_test "ploy_audit_log"             "select id, type, occurred_at from ploy_audit_log limit 1"
 run_test "ploy_integration"           "select id, name, type from ploy_integration limit 1"
+run_test "ploy_ip_whitelist"          "select type, cidrs from ploy_ip_whitelist limit 1"
+run_test "ploy_internal_domain"       "select domain from ploy_internal_domain limit 1"
 
 echo ""
 echo "Results: ${GREEN}${PASS} passed${RESET}  ${YELLOW}${SKIP} skipped${RESET}  ${RED}${FAIL} failed${RESET}"

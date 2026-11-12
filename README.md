@@ -70,6 +70,8 @@ where
 | [ploy_access_request](docs/tables/ploy_access_request.md) | Access requests and their approval and provisioning lifecycle. |
 | [ploy_audit_log](docs/tables/ploy_audit_log.md) | The organisation audit trail. |
 | [ploy_integration](docs/tables/ploy_integration.md) | Connected integrations (identity provider, HRIS, SaaS, ...) with last scan time. |
+| [ploy_ip_whitelist](docs/tables/ploy_ip_whitelist.md) | IP allow-lists for the admin dashboard and the employee portal. |
+| [ploy_internal_domain](docs/tables/ploy_internal_domain.md) | Email domains declared as internal. |
 
 > **Note — API limits:** Ploy allows 600 requests per API key per 60-second window. The plugin sends at most 8 requests per second and, on HTTP 429, waits for `Retry-After` before retrying. `ploy_resource_access` is organisation-wide: filter on `member_status`, `member_is_managed`, `active`, `identity_active`, `resource_id`, `member_id` and the other filter columns to keep scans small. The API refuses a query matching more than 250,000 rows unless it filters on `resource_id`, `member_id` or `identity_id`.
 
